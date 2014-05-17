@@ -22,12 +22,10 @@ class LoadContentExtension(Extension):
         lineno = next(parser.stream).lineno
         token = parser.stream.current
         if token.type == 'name':
-            print('got an name', token.value)
             name = token.value
             next(parser.stream)
             data = load_by_name(name)
         elif token.type == 'string':
-            print('got a string', token.value)
             if not token.value.startswith('%'):
                 parser.fail('expected a string starting with %')
             iter_name = token.value[1:]
@@ -46,7 +44,6 @@ env = jinja2.Environment(undefined=jinja2.StrictUndefined,
 
 
 def load_by_name(name):
-    print('loading {}'.format(name))
     filepath = os.path.join(CONTENT_DIR, '{}.json'.format(name))
     with open(filepath) as file_obj:
         data = json.load(file_obj)
@@ -69,6 +66,7 @@ def walk_site(dir=None, out_path=None, path_ctx=None):
         if os.path.isdir(template_path):
             if item.startswith('%'):
                 name, prop = item[1:].split('.', 1)
+
                 if name in path_ctx:
                     path_var = path_ctx[name][prop]
                     out_path = '{}/{}'.format(dir, path_var)
@@ -83,26 +81,35 @@ def walk_site(dir=None, out_path=None, path_ctx=None):
                         for thing in walk_site(template_path, out_path, path_ctx):
                             yield thing
                     del path_ctx[name]
-                print(name, prop)
             else:
                 out_path = '{}/{}'.format(dir, item)
                 for thing in walk_site(template_path, out_path, path_ctx):
                     yield thing
         else:
-            out_filepath = '{}/{}'.format(out_path, item)
+            out_filepath = '{}/{}'.format(dir, item)
             yield template_path, out_filepath, path_ctx
+
+
+def write_html(path, contents):
+    path = os.path.join(OUTPUT_DIR, path)
+    dir, _ = path.rsplit('/', 1)
+    try:
+        os.makedirs(dir)
+    except:
+        pass
+    with open(path, 'w') as out_file:
+        out_file.write(contents)
 
 
 def render_site():
     for template_path, output_path, iterdata_ctx in walk_site():
+        print 'writing {} from {}'.format(output_path, template_path)
         global iterdata_hack
         iterdata_hack = iterdata_ctx
-        print '||||||||||||||||||||| RENDRING {} |||||||||||||||||'.format(template_path)
         template = env.get_template(template_path[len(SITE_DIR)+1:])
-        print template.render()
+        rendered = template.render()
+        write_html(output_path[len(SITE_DIR)+1:], rendered)
 
-render_site()
 
-#template = env.get_template('index.html')
-#print template.render()
-
+if __name__ == '__main__':
+    render_site()
